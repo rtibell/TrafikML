@@ -1,0 +1,28 @@
+# Production environment: every secret/host comes from the environment, nothing is
+# defaulted, logging is quieter, and only the health endpoint is exposed.
+spring:
+  datasource:
+    url: ${TRAFFICML_DB_URL}
+    username: ${TRAFFICML_DB_USERNAME}
+    password: ${TRAFFICML_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    show-sql: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+trafficml:
+  slack:
+    channel: ${TRAFFICML_SLACK_CHANNEL:#traffic-alerts}
+  traffic-message:
+    storage-dir: ${TRAFFICML_MESSAGE_DIR:/var/lib/trafficml/prod/messages}
+
+logging:
+  level:
+    root: WARN
+    com.tibell.trafficml: INFO

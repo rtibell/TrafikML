@@ -1,0 +1,17 @@
+==========================================
+Use these
+==========================================
+https://trafiken.nu/api/traveltime?region=vst
+https://trafiken.nu/api/traveltime/action/getsections?region=vst
+
+https://trafiken.nu/api/trafficmessages?region=vst&trafficType=V%C3%A4gtrafik
+
+
+==========================================
+Don't use
+==========================================
+https://trafiken.nu/api/vmssigns
+https://trafiken.nu/api/congestiontax?region=vst
+https://trafiken.nu/api/external/sun?region=vst
+https://trafiken.nu/api/alerts?region=vst
+https://trafiken.nu/api/trafficcameras?region=vst

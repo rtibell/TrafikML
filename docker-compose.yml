@@ -1,0 +1,21 @@
+services:
+  postgres:
+    # imresamu/postgis is a multi-arch (amd64 + arm64) rebuild of postgis/postgis, which
+    # only publishes amd64 images; this runs on Apple Silicon dev machines too.
+    image: imresamu/postgis:17-3.5
+    environment:
+      POSTGRES_DB: trafficml_dev
+      POSTGRES_USER: trafficml
+      POSTGRES_PASSWORD: trafficml
+    ports:
+      - "5432:5432"
+    volumes:
+      - trafficml-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trafficml -d trafficml_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  trafficml-postgres-data:

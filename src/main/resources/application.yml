@@ -1,0 +1,67 @@
+# Common configuration shared by every environment (dev/test/prod). Environment-specific
+# overrides (datasource, logging, Slack channel, ...) live in application-<profile>.yml.
+spring:
+  application:
+    name: trafficml-backend
+  threads:
+    virtual:
+      enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# All dynamic/domain configuration for the three ingestion services.
+trafficml:
+  api:
+    speed-of-section-url: https://trafiken.nu/api/traveltime?region=vst
+    definition-of-section-url: https://trafiken.nu/api/traveltime/action/getsections?region=vst
+    traffic-messages-url: https://trafiken.nu/api/trafficmessages?region=vst&trafficType=V%C3%A4gtrafik
+
+  schedule:
+    enabled: true
+    zone: Europe/Stockholm
+    # Every minute, 07:00-19:59 (see README for the exact interpretation of "07:00-19:00").
+    speed-of-section-cron: "0 * 7-19 * * *"
+    # Once a day at 06:00.
+    definition-of-section-cron: "0 0 6 * * *"
+    # Every 10 minutes, all day.
+    traffic-messages-cron: "0 */10 * * * *"
+
+  slack:
+    enabled: ${TRAFFICML_SLACK_ENABLED:true}
+    webhook-url: ${TRAFFICML_SLACK_WEBHOOK_URL:}
+    channel: ${TRAFFICML_SLACK_CHANNEL:#traffic-alerts}
+
+  traffic-message:
+    storage-dir: ${TRAFFICML_MESSAGE_DIR:./data/messages}
+    # {{placeholder}} tokens are substituted by MessageTemplateRenderer from the fetched
+    # TrafficMessage payload.
+    template: |
+      :warning: *{{title}}*
+      {{message}}
+
+      Typ: {{messageType}} ({{trafficType}})
+      Allvarlighetsgrad: {{severityText}}
+      Period: {{startTime}} - {{endTime}}
+      Mer information: {{detailsPath}}
+
+logging:
+  level:
+    root: INFO
+    com.tibell.trafficml: INFO

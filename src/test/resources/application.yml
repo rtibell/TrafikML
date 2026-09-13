@@ -1,0 +1,35 @@
+# Test-classpath configuration used by the JUnit test suite. This file takes precedence
+# over src/main/resources/application.yml on the test runtime classpath. Scheduling and
+# Slack are disabled so tests control ingestion explicitly instead of racing a timer.
+trafficml:
+  api:
+    speed-of-section-url: https://example.invalid/traveltime
+    definition-of-section-url: https://example.invalid/traveltime/action/getsections
+    traffic-messages-url: https://example.invalid/trafficmessages
+
+  schedule:
+    enabled: false
+    zone: Europe/Stockholm
+    speed-of-section-cron: "0 * 7-19 * * *"
+    definition-of-section-cron: "0 0 6 * * *"
+    traffic-messages-cron: "0 */10 * * * *"
+
+  slack:
+    enabled: false
+    webhook-url: https://hooks.slack.example.invalid/services/TEST/TEST/test
+    channel: "#traffic-alerts-test"
+
+  traffic-message:
+    storage-dir: build/test-output/messages
+    template: |
+      :warning: *{{title}}*
+      {{message}}
+
+      Typ: {{messageType}} ({{trafficType}})
+      Allvarlighetsgrad: {{severityText}}
+      Period: {{startTime}} - {{endTime}}
+      Mer information: {{detailsPath}}
+
+logging:
+  level:
+    com.tibell.trafficml: INFO

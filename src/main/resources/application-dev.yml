@@ -1,0 +1,29 @@
+# Local development environment: a Postgres+PostGIS instance on localhost (see
+# docker-compose.yml), verbose logging, Slack disabled by default so nobody spams the
+# team channel while iterating locally.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/trafficml_dev
+    username: ${TRAFFICML_DB_USERNAME:trafficml}
+    password: ${TRAFFICML_DB_PASSWORD:trafficml}
+  jpa:
+    show-sql: true
+
+trafficml:
+  slack:
+    enabled: false
+  traffic-message:
+    storage-dir: ${TRAFFICML_MESSAGE_DIR:./data/messages/dev}
+  schedule:
+    enabled: true
+    zone: Europe/Stockholm
+    # Every minute, 07:00-18:59 (see README for the exact interpretation of "07:00-19:00").
+    speed-of-section-cron: "0 * 7-18 * * *"
+    # Every quarkter hours 07:00-19:00.
+    definition-of-section-cron: "0 0 7-19 * * *"
+    # Every 10 minutes, all day.
+    traffic-messages-cron: "0 */10 * * * *"
+
+logging:
+  level:
+    com.tibell.trafficml: DEBUG

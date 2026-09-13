@@ -1,0 +1,19 @@
+# Shared test/staging environment: a dedicated database and Slack channel, distinct from
+# both local dev and production, used for pre-release verification.
+spring:
+  datasource:
+    url: ${TRAFFICML_DB_URL:jdbc:postgresql://localhost:5432/trafficml_test}
+    username: ${TRAFFICML_DB_USERNAME:trafficml}
+    password: ${TRAFFICML_DB_PASSWORD:trafficml}
+  jpa:
+    show-sql: false
+
+trafficml:
+  slack:
+    channel: ${TRAFFICML_SLACK_CHANNEL:#traffic-alerts-test}
+  traffic-message:
+    storage-dir: ${TRAFFICML_MESSAGE_DIR:/var/lib/trafficml/test/messages}
+
+logging:
+  level:
+    com.tibell.trafficml: INFO
