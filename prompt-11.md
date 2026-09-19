@@ -9,6 +9,8 @@ Treat each road segment's minute-by-minute speed and flow-status as its own mult
 - Generate code for a application that can create, evaluate and run a model with properties as described above. 
 - Partition data into training set (90%) and test set (10%), shuffle the data with a random algorithm using seed 4711.
 - Evaluate the model and suggest improvments to the code and machine learning parameters. 
+- Generate documentation for how the solution is designed in markdown file MachineLearning_MK/Solution.md.
+- Generate documentation on how to run the solution in markdown file MachineLearning_MK/Operations.md.
 
 # Instruction
 - Use Python for training of the model.

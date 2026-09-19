@@ -48,5 +48,6 @@ I would like you to add an additional REST endpoint and a corresponding service 
 	"daysUntilHoliday": 5,
 	"holidayNr": 1
 	"minutesSincDaybreak: 533243, 
-	"monthOfYear": 9
+	"monthOfYear": 9,
+	"holidayNum": 2
 }
