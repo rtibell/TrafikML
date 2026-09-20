@@ -30,7 +30,11 @@ class SpeedOfSectionMLDataControllerTest {
     @Test
     void mlSpeedDataReturnsFeatureRowsForSection() {
         MachineLearningSpeedOfSectionView view = new MachineLearningSpeedOfSectionView(
-                44469L, LocalDateTime.parse("2026-09-13T13:44:00"), "freeflow", 0, 70, 6, 48, 0, 464, 9, 14);
+                44469L, LocalDateTime.parse("2026-09-13T13:44:00"), "freeflow", 0, 70, 6, 48,
+                1, 0, 0,
+                1, 0, 0, 0,
+                464, 9,
+                0, 0, 0, 0, 0, 0, 0, 0, 1, 0);
         when(mlData.forSection(eq(44469L), any(Pageable.class))).thenReturn(List.of(view));
 
         var result = mvc.get().uri("/api/v1/sections/44469/ml-speed-data").exchange();
@@ -38,6 +42,7 @@ class SpeedOfSectionMLDataControllerTest {
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$[0].statusEnum").isEqualTo(0);
         assertThat(result).bodyJson().extractingPath("$[0].speed").isEqualTo(70);
-        assertThat(result).bodyJson().extractingPath("$[0].holidayNum").isEqualTo(14);
+        assertThat(result).bodyJson().extractingPath("$[0].freeflow_status").isEqualTo(1);
+        assertThat(result).bodyJson().extractingPath("$[0].holiday_is_allahelgona").isEqualTo(1);
     }
 }

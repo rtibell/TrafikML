@@ -131,10 +131,25 @@ curl "http://localhost:8080/api/v1/sections/44469/ml-speed-data?size=5"
     "speed": 70,
     "dayNr": 6,
     "daysUntilHoliday": 48,
-    "holidayNr": 0,
+    "holiday_type_regular_day": 1,
+    "holiday_type_eve": 0,
+    "holiday_type_holiday": 0,
+    "freeflow_status": 1,
+    "heavy_status": 0,
+    "congested_status": 0,
+    "imposible_status": 0,
     "minutesSincDaybreak": 464,
     "monthOfYear": 9,
-    "holidayNum": 14
+    "holiday_is_nyar": 0,
+    "holiday_is_jul": 0,
+    "holiday_is_forsta_maj": 0,
+    "holiday_is_nationaldagen": 0,
+    "holiday_is_pask": 0,
+    "holiday_is_kristihimmelsfard": 0,
+    "holiday_is_pingst": 0,
+    "holiday_is_midsommar": 0,
+    "holiday_is_allahelgona": 1,
+    "holiday_is_trettondag": 0
   }
 ]
 ```
@@ -150,19 +165,23 @@ curl "http://localhost:8080/api/v1/sections/44469/ml-speed-data?size=5"
 | `speed` | number \| `null` | Measured speed (km/h) as reported by trafiken.nu; `null` if not reported |
 | `dayNr` | number | Day of week of `measureTime` — see below |
 | `daysUntilHoliday` | number | Days from `measureTime`'s date until the next Swedish public holiday (see [Holiday calculation](#holiday-calculation)) |
-| `holidayNr` | number | Whether `measureTime`'s date is a regular day, a holiday eve, or a holiday itself — see below |
+| `holiday_type_regular_day`, `holiday_type_eve`, `holiday_type_holiday` | number (0/1) | One-hot encoding of whether `measureTime`'s date is a regular day, a holiday eve, or a holiday itself — exactly one is `1` — see below |
+| `freeflow_status`, `heavy_status`, `congested_status`, `imposible_status` | number (0/1) | One-hot encoding of `statusEnum` — exactly one is `1` — see below |
 | `minutesSincDaybreak` | number | Minutes elapsed since 06:00 on `measureTime`'s date, wrapping past midnight — see below |
 | `monthOfYear` | number | Calendar month of `measureTime`, `1`–`12` |
-| `holidayNum` | number | Which Swedish public holiday is next after `measureTime`'s date — see below |
+| `holiday_is_nyar`, `holiday_is_jul`, `holiday_is_forsta_maj`, `holiday_is_nationaldagen`, `holiday_is_pask`, `holiday_is_kristihimmelsfard`, `holiday_is_pingst`, `holiday_is_midsommar`, `holiday_is_allahelgona`, `holiday_is_trettondag` | number (0/1) | One-hot encoding of which Swedish public holiday is next after `measureTime`'s date — exactly one is `1` — see below |
 
-#### `statusEnum`
+The one-hot fields exist so the ML model consumes plain numeric features directly,
+without needing to embed a categorical/enum value itself.
 
-| `status` | `statusEnum` |
-|---|---|
-| `freeflow` | `0` |
-| `heavy` | `1` |
-| `congested` | `2` |
-| `impossible` | `3` |
+#### `statusEnum` / `*_status`
+
+| `status` | `statusEnum` | one-hot field set to `1` |
+|---|---|---|
+| `freeflow` | `0` | `freeflow_status` |
+| `heavy` | `1` | `heavy_status` |
+| `congested` | `2` | `congested_status` |
+| `impossible` | `3` | `imposible_status` |
 
 An unrecognized `status` value fails the request (`500`) rather than being silently
 mapped — the four values above are the complete set observed from trafiken.nu.
@@ -181,16 +200,16 @@ ISO day of week, zero-based starting on Monday:
 | Saturday | `5` |
 | Sunday | `6` |
 
-#### `holidayNr`
+#### `holiday_type_*`
 
-| Value | Meaning |
+| One-hot field set to `1` | Meaning |
 |---|---|
-| `0` | Regular day |
-| `1` | Eve — the day immediately before a Swedish public holiday |
-| `2` | The date itself is a Swedish public holiday |
+| `holiday_type_regular_day` | Regular day |
+| `holiday_type_eve` | Eve — the day immediately before a Swedish public holiday |
+| `holiday_type_holiday` | The date itself is a Swedish public holiday |
 
 If a date is both (e.g. the day before a holiday that is itself preceded by another
-holiday), `2` takes precedence over `1`.
+holiday), `holiday_type_holiday` takes precedence over `holiday_type_eve`.
 
 #### `minutesSincDaybreak`
 
@@ -204,35 +223,30 @@ value always stays in `[0, 1439]`:
 | `13:44` | `464` |
 | `05:59` | `1439` (i.e. one minute before the next daybreak) |
 
-#### `holidayNum`
+#### `holiday_is_*`
 
-A predefined, year-independent identifier for *which* Swedish public holiday
+A predefined, year-independent one-hot encoding of *which* Swedish public holiday
 `daysUntilHoliday` counts down to — i.e. the same holiday `SwedishHolidays.nextHoliday()`
-found for the given date. It is populated regardless of `holidayNr` (a regular day still
-carries the number of its upcoming holiday, not `0`).
+found for the given date. It is populated regardless of `holiday_type_*` (a regular day
+still has exactly one `holiday_is_*` field set, for its upcoming holiday).
 
-| `holidayNum` | Holiday |
-|---|---|
-| `1` | Nyårsdagen (New Year's Day) |
-| `2` | Trettondedag jul (Epiphany) |
-| `3` | Första maj (May Day) |
-| `4` | Nationaldagen (National Day) |
-| `5` | Juldagen (Christmas Day) |
-| `6` | Annandag jul (Boxing Day) |
-| `7` | Långfredagen (Good Friday) |
-| `8` | Påskafton (Easter Eve) |
-| `9` | Påskdagen (Easter Sunday) |
-| `10` | Annandag påsk (Easter Monday) |
-| `11` | Kristi himmelsfärdsdag (Ascension Day) |
-| `12` | Pingstdagen (Whit Sunday) |
-| `13` | Midsommardagen (Midsummer Day) |
-| `14` | Alla helgons dag (All Saints' Day) |
+| One-hot field set to `1` | Holiday | internal `holidayNum` |
+|---|---|---|
+| `holiday_is_nyar` | Nyårsdagen (New Year's Day) | `1` |
+| `holiday_is_jul` | Jul (Christmas) | `2` |
+| `holiday_is_forsta_maj` | Första maj (May Day) | `3` |
+| `holiday_is_nationaldagen` | Nationaldagen (National Day) | `4` |
+| `holiday_is_pask` | Påsk (Easter) | `6` |
+| `holiday_is_kristihimmelsfard` | Kristi himmelsfärdsdag (Ascension Day) | `7` |
+| `holiday_is_pingst` | Pingstdagen (Whit Sunday) | `8` |
+| `holiday_is_midsommar` | Midsommardagen (Midsummer Day) | `9` |
+| `holiday_is_allahelgona` | Alla helgons dag (All Saints' Day) | `10` |
+| `holiday_is_trettondag` | Trettondag jul (Epiphany) | `11` |
 
 #### Holiday calculation
 
-`daysUntilHoliday` and `holidayNr` are both derived from `SwedishHolidays` (see
-`src/main/java/com/tibell/trafficml/util/SwedishHolidays.java`), which computes the
-fixed-date, Easter-based, and weekday-based Swedish public holidays: Nyårsdagen,
-Trettondedag jul, Första maj, Nationaldagen, Juldagen, Annandag jul, Långfredagen,
-Påskafton, Påskdagen, Annandag påsk, Kristi himmelsfärdsdag, Pingstdagen,
-Midsommardagen, and Alla helgons dag.
+`daysUntilHoliday` and the `holiday_type_*` fields are both derived from
+`SwedishHolidays` (see `src/main/java/com/tibell/trafficml/util/SwedishHolidays.java`),
+which computes the fixed-date, Easter-based, and weekday-based Swedish public holidays:
+Nyårsdagen, Trettondag jul, Första maj, Nationaldagen, Jul, Påsk, Kristi
+himmelsfärdsdag, Pingstdagen, Midsommardagen, and Alla helgons dag.

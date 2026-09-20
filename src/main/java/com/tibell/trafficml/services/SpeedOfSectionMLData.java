@@ -45,21 +45,39 @@ public class SpeedOfSectionMLData {
         LocalDateTime measureTime = measurement.getId().measureTime();
         LocalDate measureDate = measureTime.toLocalDate();
         String status = measurement.getStatus();
+        int statusEnum = statusEnum(status);
 
         SwedishHolidays.HolidayResult nextHoliday = SwedishHolidays.nextHoliday(measureDate);
+        int holidayType = holidayType(measureDate, nextHoliday);
+        int holidayNum = nextHoliday.holidayNum;
 
         return new MachineLearningSpeedOfSectionView(
                 measurement.getId().sectionId(),
                 measureTime,
                 status,
-                statusEnum(status),
+                statusEnum,
                 measurement.getSpeed(),
                 dayNr(measureTime),
                 (int) nextHoliday.daysUntil,
-                holidayType(measureDate, nextHoliday),
+                holidayType == REGULAR_DAY ? 1 : 0,
+                holidayType == EVE ? 1 : 0,
+                holidayType == HOLIDAY ? 1 : 0,
+                statusEnum == Status.FREEFLOW.code ? 1 : 0,
+                statusEnum == Status.HEAVY.code ? 1 : 0,
+                statusEnum == Status.CONGESTED.code ? 1 : 0,
+                statusEnum == Status.IMPOSSIBLE.code ? 1 : 0,
                 minutesSinceDaybreak(measureTime),
                 measureTime.getMonthValue(),
-                nextHoliday.holidayNum);
+                holidayNum == SwedishHolidays.NYAR ? 1 : 0,
+                holidayNum == SwedishHolidays.JUL ? 1 : 0,
+                holidayNum == SwedishHolidays.FORSTA_MAJ ? 1 : 0,
+                holidayNum == SwedishHolidays.NATIONALDAGEN ? 1 : 0,
+                holidayNum == SwedishHolidays.PASK ? 1 : 0,
+                holidayNum == SwedishHolidays.KRISTI_HIMMELSFARDSDAG ? 1 : 0,
+                holidayNum == SwedishHolidays.PINGSTDAGEN ? 1 : 0,
+                holidayNum == SwedishHolidays.MIDSOMMAR ? 1 : 0,
+                holidayNum == SwedishHolidays.ALLA_HELGONS_DAG ? 1 : 0,
+                holidayNum == SwedishHolidays.TRETTONDEDAG_JUL ? 1 : 0);
     }
 
     private static int statusEnum(String status) {

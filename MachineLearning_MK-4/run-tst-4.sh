@@ -1,0 +1,3 @@
+python export_raw_trafic_data.py --base-url http://localhost:8080 --out raw-trafic-data.json --limit-sections 100 > test-4.log
+python train.py --data raw-trafic-data.json --epochs 200 --num-layers 4 --batch-size 512 --activation relu --early-stopping-patience 20 --early-stopping-min-delta 1e-2 --momentum 0.90  >> test-4.log
+python evaluate.py --checkpoint checkpoints/best.pt --data raw-trafic-data.json >> test-4.log

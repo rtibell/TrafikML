@@ -48,16 +48,16 @@ public class SwedishHolidays {
     // Predefined holiday numbers (holidayNum): a stable identifier for which holiday
     // is being referred to, independent of the year it falls in.
     // -----------------------------
-    private static final int NYAR = 1;
-    private static final int JUL = 2;
-    private static final int TRETTONDEDAG_JUL = 11;
-    private static final int FORSTA_MAJ = 3;
-    private static final int NATIONALDAGEN = 4;
-    private static final int PASK = 6;
-    private static final int KRISTI_HIMMELSFARDSDAG = 7;
-    private static final int PINGSTDAGEN = 8;
-    private static final int MIDSOMMAR = 9;
-    private static final int ALLA_HELGONS_DAG = 10;
+    public static final int NYAR = 1;
+    public static final int JUL = 2;
+    public static final int TRETTONDEDAG_JUL = 11;
+    public static final int FORSTA_MAJ = 3;
+    public static final int NATIONALDAGEN = 4;
+    public static final int PASK = 6;
+    public static final int KRISTI_HIMMELSFARDSDAG = 7;
+    public static final int PINGSTDAGEN = 8;
+    public static final int MIDSOMMAR = 9;
+    public static final int ALLA_HELGONS_DAG = 10;
 //    private static final int NYARSDAGEN = 1;
 //    private static final int TRETTONDEDAG_JUL = 2;
 //    private static final int JULDAGEN = 5;
