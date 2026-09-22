@@ -55,13 +55,13 @@ ACTIVATION_OPTIONS = sorted(GA_ACTIVATIONS)
 # random-search space, so a GA run and a random-search run explore the same universe of
 # configurations and their results are comparable. Dict order fixes gene order.
 SEARCH_SPACE: dict[str, list] = {
-    "num_layers": [1, 2, 3, 4],
-    "hidden_dim": [32, 64, 128, 256],
+    "num_layers": [1, 2, 3, 4, 5, 6],
+    "hidden_dim": [32, 64, 128, 256, 384, 512],
     "activation": ACTIVATION_OPTIONS,
     "dropout": [0.0, 0.1, 0.2, 0.3],
-    "lr": [1e-3, 3e-3, 1e-2, 3e-2],
-    "momentum": [0.0, 0.8, 0.9, 0.95],
-    "lr_decay": [1.0, 0.99, 0.97],
+    "lr": [1e-3, 3e-3, 1e-2, 3e-2, 1e-1],
+    "momentum": [0.7, 0.8, 0.9, 0.95],
+    "lr_decay": [1.0, 0.99, 0.97, 0.95],
     "batch_size": [128, 256, 512, 1024],
     "class_weights": ["balanced", "none"],
 }
