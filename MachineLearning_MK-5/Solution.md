@@ -300,29 +300,57 @@ for rare classes. `--activation relu` remains the default for consistency with t
 other `MK-*` versions; `tanh`/`leaky_relu` are worth trying if squeezing out the last
 few points of balanced accuracy matters more than matching the family default.
 
-### Hyperparameter tuning (`tune.py`)
+### Hyperparameter tuning (`tune-rnd.py` / `tune-ga.py`)
 
-Random search over `--num-layers`, `--hidden-dim`, `--activation`, `--dropout`, `--lr`,
-`--momentum`, `--lr-decay`, `--batch-size`, and `--class-weights`. An 8-trial run (up to
-8 epochs each, `--early-stopping-patience 4`) on the real export:
+Two interchangeable tuners search the same 9-hyperparameter space (`--num-layers`,
+`--hidden-dim`, `--activation`, `--dropout`, `--lr`, `--momentum`, `--lr-decay`,
+`--batch-size`, `--class-weights`) and reuse `train.py::run_training` for every
+candidate, exactly as the original single-script `tune.py` did before this version
+split it in two:
 
-| Trial | layers | hidden | activation | class_weights | stopped@ | val balanced acc. |
-|---|---|---|---|---|---|---|
-| 6 (winner) | 2 | 128 | leaky_relu | balanced | 8 (still improving) | **0.4676** |
-| 3 | 3 | 64 | softsign | balanced | 8 (still improving) | 0.4546 |
-| 7 | 3 | 64 | sigmoid | balanced | 8 (still improving) | 0.3284 |
-| 5 | 4 | 256 | tanh | balanced | 8 (still improving) | 0.3467 |
-| 2 | 1 | 256 | sigmoid | balanced | 5 | 0.3175 |
-| 1, 4, 8 (worst, tied) | — | — | — | **none** | 5 | 0.2500 |
+- **`tune-rnd.py`** — uniform random search, the original approach. Kept unmodified as
+  a comparison baseline.
+- **`tune-ga.py`** — a genetic algorithm (GA), using
+  [`PyGAD`](https://github.com/ahmedfgad/GeneticAlgorithmPython) (open-source,
+  BSD-3-Clause). A population of candidate configurations evolves over several
+  generations via fitness-proportionate selection, crossover, and mutation, instead of
+  every trial being sampled independently of every other trial's result. Chosen over
+  the other common free/open-source option, DEAP, because PyGAD's `gene_space`
+  parameter maps directly onto this search: each hyperparameter's discrete choice list
+  becomes one gene's allowed values, so PyGAD's built-in operators already respect them
+  with no hand-written chromosome encoding or custom mutation logic needed.
 
-The three `class_weights=none` trials all scored *exactly* 0.2500 — every one degenerated
-to predicting a single class, confirming the "Why balanced accuracy" analysis holds
-across architectures, not just the baseline config. Every `class_weights=balanced`
-trial scored well above that floor. Retraining trial 6's config for up to 20 epochs
-(it hadn't converged within the 8-epoch search budget) reached **val balanced accuracy
-0.4805** — essentially matching the hand-picked baseline above, which suggests the
-default architecture is already close to what a short random search finds; a larger
-`--trials`/`--trial-epochs` budget would be needed to search meaningfully past it.
+Both rank candidates by the same metric `train.py` itself optimizes: validation
+*balanced* accuracy. `tune-ga.py` additionally logs macro precision/F1/F2 per candidate
+(computed via a small `train.py::run_epoch` extension that now also tracks per-class
+predicted counts, so these come "for free" from the same epoch loop already running for
+early stopping — no extra forward pass). See `Tuning.md` for the full design
+walkthrough (chromosome encoding, GA operator choices and why, fitness caching) and
+tuning tips.
+
+**Measured comparison** (20,000-row synthetic dataset — not yet the real export, see
+`Tuning.md`'s caveat — 20 random-search trials vs. an 8-individual/3-generation GA run,
+identical training budget):
+
+| | Random search (`tune-rnd.py`) | GA (`tune-ga.py`) |
+|---|---|---|
+| Best val balanced accuracy | **0.8781** (trial 10/20) | 0.8612 (generation 2) |
+| Test balanced accuracy (winner retrained) | **0.6345** | 0.6039 |
+| Test macro-F1 | **0.5575** | 0.5368 |
+| Degenerate (~0.33, single-class-collapse) trials | 9 of 20 (45%) | 0 of 8 by generation 2 |
+| Population/trial mean fitness trend | flat, no learning across trials | **rising every generation: 0.41 → 0.53 → 0.58 → 0.62** |
+
+Random search's single best trial narrowly won this particular small-budget comparison
+— reported here plainly rather than as a GA win, since it wasn't one. What the GA
+demonstrably delivered instead: its population's *mean* fitness climbed every
+generation (direct evidence of directed search, not blind sampling) and it never
+produced a degenerate individual past generation 1, while nearly half of random
+search's independent trials collapsed to the useless ~0.33 floor by chance. A GA's
+advantage compounds with more generations; `Tuning.md` recommends a larger
+population/generation budget (and averaging multiple `--search-seed` runs) before
+drawing a final conclusion on a production-scale dataset — this run used a small
+budget specifically to keep the comparison's wall-clock short. Full findings, per-
+generation tables, and the confusion-matrix-level test comparison are in `Tuning.md`.
 
 ## Evaluation (`evaluate.py`)
 
@@ -358,7 +386,11 @@ table, and a confusion matrix (as text, CSV, and a row-normalized heatmap PNG).
   `--grad-clip` value, or averaging the last few epochs' checkpoints instead of taking
   a single best-epoch snapshot would all likely reduce this noise.
 - `--lr-decay` is exposed but not exercised by the measured comparisons above (all used
-  the default `1.0`). `tune.py`'s search does sample it.
+  the default `1.0`). Both `tune-rnd.py`'s and `tune-ga.py`'s searches do sample it.
+- **Re-run `tune-ga.py` with a larger population/generation budget against the real
+  export.** The measured comparison above used a small budget (8×3) specifically to
+  keep it fast; see `Tuning.md`'s "Tips for tuning the tuner" for concrete next steps
+  (population/generation sizing, mutation rate, multi-seed averaging).
 
 **Data / evaluation caveats**
 - **The current `raw-trafic-data.json` export is not yet calendar-diverse.** It spans a

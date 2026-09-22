@@ -17,11 +17,11 @@ Device is picked automatically, in this priority order (see `train.py::select_de
 3. **CPU**, otherwise.
 
 Override with `--device cpu`, `--device cuda:0`, or `--device mps` if you need to force
-a specific one. `train.py`/`tune.py`/`evaluate.py` all print which device they picked.
-This model is a small MLP over a 20-wide input; on an M2 MacBook it trains real data
-(≈355k training rows) in ~3s per epoch on the Apple GPU, and is fast enough on plain
-CPU too — GPU mainly helps by letting `--batch-size`, `--hidden-dim`, and `tune.py`'s
-trial count scale up cheaply.
+a specific one. `train.py`/`tune-rnd.py`/`tune-ga.py`/`evaluate.py` all print which
+device they picked. This model is a small MLP over a 20-wide input; on an M2 MacBook it
+trains real data (≈355k training rows) in ~3s per epoch on the Apple GPU, and is fast
+enough on plain CPU too — GPU mainly helps by letting `--batch-size`, `--hidden-dim`,
+and the tuners' trial/population count scale up cheaply.
 
 ## Getting data
 
@@ -141,16 +141,21 @@ matrices — the unweighted run should collapse to predicting `freeflow` for eve
 
 ## Hyperparameter tuning
 
+Two interchangeable tuners search the same 9-hyperparameter space (`--num-layers`,
+`--hidden-dim`, `--activation`, `--dropout`, `--lr`, `--momentum`, `--lr-decay`,
+`--batch-size`, `--class-weights`) and reuse `train.py`'s early-stopping-aware training
+loop for every candidate. See `Tuning.md` for the full design writeup, a measured
+comparison between the two, and tuning tips — this section covers day-to-day commands.
+
+### Random search (`tune-rnd.py`)
+
 ```bash
-python tune.py --data raw-trafic-data.json --trials 20 --trial-epochs 20 --final-epochs 100
+python tune-rnd.py --data raw-trafic-data.json --trials 20 --trial-epochs 20 --final-epochs 100
 ```
 
-Random search over `--num-layers`, `--hidden-dim`, `--activation`, `--dropout`, `--lr`,
-`--momentum`, `--lr-decay`, `--batch-size`, and `--class-weights`, seeded by
-`--search-seed` (default 4711 — see `Solution.md`). Every trial reuses
-`train.py`'s early-stopping-aware training loop; the winner (by best validation
-**balanced** accuracy) is retrained for up to `--final-epochs` and checkpointed to
-`<output-dir>/best_checkpoint/`.
+Samples each trial independently, seeded by `--search-seed` (default 4711 — see
+`Solution.md`). The winner (by best validation **balanced** accuracy) is retrained for
+up to `--final-epochs` and checkpointed to `<output-dir>/best_checkpoint/`.
 
 **Outputs** (in `--output-dir`, default `tuning/`):
 - `tuning_results.csv` — every trial's config, validation balanced accuracy, and the epoch it stopped at
@@ -161,6 +166,44 @@ Increase `--trials` for a more thorough search once you have GPU time to spend; 
 per-trial cost is one early-stopping-bounded `run_training` call, so search cost scales
 with `--trials × (average epochs per trial)`, not `--trials × --trial-epochs` directly
 (most trials stop well before the cap).
+
+### Genetic algorithm (`tune-ga.py`)
+
+```bash
+python tune-ga.py --data raw-trafic-data.json --population-size 16 --generations 8 \
+    --trial-epochs 20 --final-epochs 100
+```
+
+Evolves a population of candidate configurations over several generations (selection,
+crossover, mutation, elitism — via [PyGAD](https://github.com/ahmedfgad/GeneticAlgorithmPython),
+`pip install pygad`, already in `requirements.txt`) instead of sampling trials
+independently. Same ranking metric (validation balanced accuracy) and same final-retrain
+step as `tune-rnd.py`. Key extra flags (`python tune-ga.py --help` for the full list):
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--population-size` | 8 | Individuals evaluated per generation |
+| `--generations` | 5 | Evolutionary steps beyond the initial population |
+| `--parent-selection-type` | `sss` | PyGAD parent-selection strategy |
+| `--crossover-type` | `uniform` | Per-gene independent crossover — see `Tuning.md` for why this fits hyperparameter tuning better than single/two-point |
+| `--mutation-percent-genes` | 25.0 | Expected % of genes mutated per offspring |
+| `--keep-elitism` | 1 | Best individuals carried unchanged into the next generation |
+| `--search-seed` | 4711 | Seeds PyGAD's population init/crossover/mutation RNG |
+
+**Outputs** (in `--output-dir`, default `tuning-ga/`):
+- `tuning_results.csv` — every evaluated config's generation/individual index, all 9
+  hyperparameters, **validation balanced accuracy, precision, F1, and F2** (macro,
+  computed at that trial's best epoch), the epoch it stopped at, wall-clock training
+  time, and whether the row was served from the internal fitness cache (`cache_hit`) —
+  see `Tuning.md` for what that means and why it's there
+- `best_config.json` — the winning config across the whole run
+- `best_checkpoint/best.pt` — the retrained winning model, usable directly with `evaluate.py`
+
+Increase `--population-size`/`--generations` for a more thorough search once you have
+GPU time to spend — per `Tuning.md`'s measured comparison, a larger generation budget
+specifically is what lets the GA's population-level improvement pull ahead of random
+search, so prefer growing `--generations` over `--population-size` if you can only grow
+one.
 
 ## Evaluation
 
@@ -198,7 +241,9 @@ This was run as part of building this version (8,000 synthetic rows, every
 `raw-trafic-data.json` export (438,847 rows, on an M2 MacBook's Apple GPU): training
 converged (with early stopping) in 9–14 epochs at ~3s/epoch for the baseline config,
 and `evaluate.py` produced sensible, if modest, classification metrics — see
-Solution.md's "Measured results" for the actual numbers. Delete `/tmp/mk5-smoke` and
+Solution.md's "Measured results" for the actual numbers. `tune-rnd.py` and `tune-ga.py`
+end-to-end (20,000 synthetic rows, on Apple GPU) were likewise run as part of adding
+the GA tuner — see `Tuning.md` for that comparison run's full results. Delete `/tmp/mk5-smoke` and
 `synthetic-trafic-data.json` afterwards; they're scratch output.
 
 ## Troubleshooting

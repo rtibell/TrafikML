@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 checkpoints/
 tuning/
+tuning-ga/
 *.json
 .venv/
 venv/
+tuning-ga-compare/

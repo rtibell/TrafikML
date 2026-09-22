@@ -21,6 +21,9 @@ correct fit for this target.
   and suggested improvements.
 - **[Operations.md](Operations.md)** — how to set up, get data, train, tune, and
   evaluate, plus a troubleshooting table.
+- **[Tuning.md](Tuning.md)** — how hyperparameter tuning works: the random-search
+  (`tune-rnd.py`) and genetic-algorithm (`tune-ga.py`) tuners, why PyGAD was chosen, a
+  measured comparison between the two, and tips for tuning the tuner.
 
 ```bash
 cd MachineLearning_MK-5

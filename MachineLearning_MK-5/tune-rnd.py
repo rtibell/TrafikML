@@ -7,7 +7,11 @@ configuration (by best validation *balanced* accuracy -- see train.py's module
 docstring for why raw accuracy is the wrong ranking metric on this imbalanced target)
 is then retrained for a full epoch budget and checkpointed.
 
-    python tune.py --data raw-trafic-data.json --trials 20 --trial-epochs 20 --final-epochs 100
+This is the original (uniform) random-search tuner, kept as-is for comparison against
+`tune-ga.py`'s genetic-algorithm search -- see `Tuning.md` for a discussion of the two
+approaches and measured results comparing them.
+
+    python tune-rnd.py --data raw-trafic-data.json --trials 20 --trial-epochs 20 --final-epochs 100
 """
 
 from __future__ import annotations

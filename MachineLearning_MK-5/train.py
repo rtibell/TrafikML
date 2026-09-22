@@ -6,7 +6,7 @@ Example (a GTX 1080 or an Apple-Silicon GPU is picked up automatically if availa
         --num-layers 3 --activation leaky_relu
 
 The epoch-loop core (`run_epoch`) and full train-a-config routine (`run_training`) are
-imported by tune.py so hyperparameter search reuses exactly this code path rather than
+imported by tune-rnd.py/tune-ga.py so hyperparameter search reuses exactly this code path rather than
 a parallel copy.
 
 Implements the task's "Features to implement" ML paradigms:
@@ -116,7 +116,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=RANDOM_SEED)
     p.add_argument("--checkpoint-dir", default="checkpoints")
     p.add_argument("--device", default=None, help="override auto-detected device, e.g. cuda:0, mps, or cpu")
-    p.add_argument("--quiet", action="store_true", help="suppress per-epoch printing (used by tune.py)")
+    p.add_argument("--quiet", action="store_true", help="suppress per-epoch printing (used by tune-rnd.py/tune-ga.py)")
     return p.parse_args(argv)
 
 
@@ -134,6 +134,7 @@ def run_epoch(model, loader, device, ce_loss, optimizer=None, grad_clip: float =
     num_classes = model.net[-1].out_features
     class_correct = np.zeros(num_classes, dtype=np.int64)
     class_total = np.zeros(num_classes, dtype=np.int64)
+    class_predicted = np.zeros(num_classes, dtype=np.int64)
     with torch.set_grad_enabled(is_train):
         for batch in loader:
             batch = batch_to_device(batch, device)
@@ -155,10 +156,12 @@ def run_epoch(model, loader, device, ce_loss, optimizer=None, grad_clip: float =
             n_batches += 1
 
             true_np = true.cpu().numpy()
+            pred_np = pred.cpu().numpy()
             for c in range(num_classes):
                 mask = true_np == c
                 class_total[c] += int(mask.sum())
                 class_correct[c] += int(is_correct[mask].sum())
+                class_predicted[c] += int((pred_np == c).sum())
 
     per_class_recall = {
         STATUS_VALUES[c]: (class_correct[c] / class_total[c] if class_total[c] > 0 else float("nan"))
@@ -170,20 +173,44 @@ def run_epoch(model, loader, device, ce_loss, optimizer=None, grad_clip: float =
     # model selection/early stopping optimizes for below.
     recalls = [v for v in per_class_recall.values() if not np.isnan(v)]
     balanced_accuracy = float(np.mean(recalls)) if recalls else float("nan")
+
+    # Macro precision/F1/F2, using the same zero_division=0 convention as evaluate.py
+    # (a class the model never predicts, or that never occurs, scores 0 rather than
+    # NaN/undefined) -- computed here, not just in evaluate.py, so tune-ga.py's fitness
+    # log can report these per candidate config without a second forward pass over the
+    # data.
+    def _safe_div(numerator: float, denominator: float) -> float:
+        return float(numerator) / denominator if denominator > 0 else 0.0
+
+    precision_per_class = {STATUS_VALUES[c]: _safe_div(class_correct[c], class_predicted[c]) for c in range(num_classes)}
+    recall0_per_class = {STATUS_VALUES[c]: _safe_div(class_correct[c], class_total[c]) for c in range(num_classes)}
+    f1_per_class = {}
+    f2_per_class = {}
+    for name in STATUS_VALUES:
+        p, r = precision_per_class[name], recall0_per_class[name]
+        f1_per_class[name] = _safe_div(2 * p * r, p + r)
+        beta_sq = 4.0  # F2: recall weighted twice as heavily as precision
+        f2_per_class[name] = _safe_div((1 + beta_sq) * p * r, beta_sq * p + r)
+
     return {
         "loss": total_loss / max(n_batches, 1),
         "accuracy": correct / max(n_rows, 1),
         "balanced_accuracy": balanced_accuracy,
         "per_class_recall": per_class_recall,
+        "precision": float(np.mean(list(precision_per_class.values()))),
+        "f1": float(np.mean(list(f1_per_class.values()))),
+        "f2": float(np.mean(list(f2_per_class.values()))),
+        "per_class_precision": precision_per_class,
+        "per_class_f2": f2_per_class,
     }
 
 
 def run_training(args: argparse.Namespace) -> dict:
     """Train one configuration end to end; returns a result dict with the best
     validation balanced accuracy, whether early stopping fired, the checkpoint path
-    (if any) and the full epoch history. Shared by train.py's CLI and tune.py's search
-    loop -- tune.py passes `checkpoint_dir=None` to skip writing checkpoints for trials
-    it isn't keeping.
+    (if any) and the full epoch history. Shared by train.py's CLI and tune-rnd.py's/
+    tune-ga.py's search loops -- both pass `checkpoint_dir=None` to skip writing
+    checkpoints for trials they aren't keeping.
     """
     set_seed(args.seed)
     device = select_device(args.device)
@@ -231,6 +258,7 @@ def run_training(args: argparse.Namespace) -> dict:
     if checkpoint_dir is not None:
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
     best_val_balanced_accuracy = -1.0
+    best_val_metrics = None
     epochs_without_improvement = 0
     stopped_early = False
     stopped_epoch = None
@@ -260,6 +288,7 @@ def run_training(args: argparse.Namespace) -> dict:
         is_best = val_metrics["balanced_accuracy"] > best_val_balanced_accuracy + args.early_stopping_min_delta
         if is_best:
             best_val_balanced_accuracy = val_metrics["balanced_accuracy"]
+            best_val_metrics = val_metrics
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
@@ -289,6 +318,7 @@ def run_training(args: argparse.Namespace) -> dict:
 
     return {
         "best_val_balanced_accuracy": best_val_balanced_accuracy,
+        "best_val_metrics": best_val_metrics,
         "history": history,
         "checkpoint_dir": str(checkpoint_dir) if checkpoint_dir else None,
         "stopped_early": stopped_early,
